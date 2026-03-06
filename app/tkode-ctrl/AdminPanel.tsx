@@ -87,7 +87,7 @@ export default function AdminPanel() {
                 await loadPins();
                 setSettingPinFor(null);
             } else {
-                alert(`Erro Vercel: ${res.error || 'Falha desconhecida.'}`);
+                alert('Erro ao salvar PIN no Supabase.');
             }
         } else {
             setSettingPinFor(null);

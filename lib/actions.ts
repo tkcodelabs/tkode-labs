@@ -44,17 +44,11 @@ export async function getAllPinsAction(): Promise<Record<string, string>> {
  */
 export async function setPinAction(slug: string, pin: string): Promise<{ success: boolean; error?: string }> {
     try {
-        const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-        const trimmedKey = rawKey.trim().replace(/^['"]|['"]$/g, '');
+        const clientUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const clientKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-        // Debug mode para a Vercel
-        const isJwt = /^[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$/.test(trimmedKey);
-
-        if (!isJwt) {
-            return {
-                success: false,
-                error: `Chave Inválida. Tamanho Real: ${rawKey.length}. Tamanho Trimmed: ${trimmedKey.length}. Final da chave lida: ${trimmedKey.slice(-10)}. Verifique se você não copiou espaços ou partes faltantes na Vercel.`
-            };
+        if (!clientUrl || !clientKey) {
+            return { success: false, error: 'Variáveis de ambiente do Supabase não encontradas no servidor.' };
         }
 
         const supabaseClient = getSupabase();
