@@ -82,12 +82,12 @@ export default function AdminPanel() {
         const val = newPinValue.trim();
 
         if (val !== '') {
-            const success = await setPinAction(slug, val);
-            if (success) {
+            const res = await setPinAction(slug, val);
+            if (res.success) {
                 await loadPins();
                 setSettingPinFor(null);
             } else {
-                alert('Erro ao salvar PIN no Supabase.');
+                alert(`Erro Vercel: ${res.error || 'Falha desconhecida.'}`);
             }
         } else {
             setSettingPinFor(null);

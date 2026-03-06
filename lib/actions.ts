@@ -40,16 +40,32 @@ export async function getAllPinsAction(): Promise<Record<string, string>> {
 /**
  * Cria ou atualiza o PIN de uma proposta específica.
  */
-export async function setPinAction(slug: string, pin: string): Promise<boolean> {
-    const { error } = await supabase
-        .from('propostas_pins')
-        .upsert({ slug, pin }, { onConflict: 'slug' });
+export async function setPinAction(slug: string, pin: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        const clientUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const clientKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (error) {
-        console.error('Erro ao salvar PIN:', error);
-        return false;
+        if (!clientUrl || !clientKey) {
+            return { success: false, error: 'Variáveis de ambiente do Supabase não encontradas no servidor.' };
+        }
+
+        const supabaseClient = createClient(clientUrl, clientKey, {
+            auth: { persistSession: false }
+        });
+
+        const { error } = await supabaseClient
+            .from('propostas_pins')
+            .upsert({ slug, pin }, { onConflict: 'slug' });
+
+        if (error) {
+            console.error('Erro ao salvar PIN:', error);
+            return { success: false, error: error.message };
+        }
+        return { success: true };
+    } catch (err: any) {
+        console.error('Exception capturada no setPinAction:', err);
+        return { success: false, error: err?.message || String(err) };
     }
-    return true;
 }
 
 /**
