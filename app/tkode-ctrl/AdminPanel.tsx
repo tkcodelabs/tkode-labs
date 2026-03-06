@@ -6,36 +6,39 @@ import { Lock, LogOut, Key, Trash2, Copy, CheckCircle2, ExternalLink, ClipboardC
 import { getAllPropostas } from '@/lib/propostas';
 import type { Proposta } from '@/lib/types';
 
+import { getAllPinsAction, setPinAction, deletePinAction } from '@/lib/actions';
+
 export default function AdminPanel() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [isInitializing, setIsInitializing] = useState(true);
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [pins, setPins] = useState<Record<string, string>>({});
     const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
-
     const [copiedPinSlug, setCopiedPinSlug] = useState<string | null>(null);
+    const [loadingTokens, setLoadingTokens] = useState(false);
+
+    const [settingPinFor, setSettingPinFor] = useState<string | null>(null);
+    const [newPinValue, setNewPinValue] = useState('');
 
     const propostas = getAllPropostas();
 
     useEffect(() => {
-        // Check session
-        if (sessionStorage.getItem('tkode_admin_auth') === 'true') {
-            setIsLoggedIn(true);
-        }
-        // Load PINs
-        loadPins();
+        const init = async () => {
+            if (sessionStorage.getItem('tkode_admin_auth') === 'true') {
+                setIsLoggedIn(true);
+                await loadPins();
+            }
+            setIsInitializing(false);
+        };
+        init();
     }, []);
 
-    const loadPins = () => {
-        const loaded: Record<string, string> = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('proposta_pin_')) {
-                const slug = key.replace('proposta_pin_', '');
-                loaded[slug] = localStorage.getItem(key) || '';
-            }
-        }
-        setPins(loaded);
+    const loadPins = async () => {
+        setLoadingTokens(true);
+        const serverPins = await getAllPinsAction();
+        setPins(serverPins);
+        setLoadingTokens(false);
     };
 
     const handleLogin = (e: React.FormEvent) => {
@@ -44,6 +47,7 @@ export default function AdminPanel() {
             sessionStorage.setItem('tkode_admin_auth', 'true');
             setIsLoggedIn(true);
             setError('');
+            loadPins();
         } else {
             setError('Senha incorreta.');
         }
@@ -55,19 +59,42 @@ export default function AdminPanel() {
         setPassword('');
     };
 
-    const setPin = (slug: string) => {
-        const current = pins[slug] || '';
-        const newPin = window.prompt(`Digite o novo PIN para a proposta '${slug}':`, current);
-        if (newPin !== null && newPin.trim() !== '') {
-            localStorage.setItem(`proposta_pin_${slug}`, newPin.trim());
-            loadPins();
+    const openSetPinModal = (slug: string) => {
+        setSettingPinFor(slug);
+        setNewPinValue(pins[slug] || '');
+    };
+
+    const confirmSetPin = async () => {
+        if (!settingPinFor) return;
+        const slug = settingPinFor;
+        const val = newPinValue.trim();
+
+        if (val !== '') {
+            const success = await setPinAction(slug, val);
+            if (success) {
+                await loadPins();
+                setSettingPinFor(null);
+            } else {
+                alert('Erro ao salvar PIN no Supabase.');
+            }
+        } else {
+            setSettingPinFor(null);
         }
     };
 
-    const deletePin = (slug: string) => {
+    const cancelSetPin = () => {
+        setSettingPinFor(null);
+        setNewPinValue('');
+    };
+
+    const deletePin = async (slug: string) => {
         if (window.confirm(`Tem certeza que deseja remover o PIN da proposta '${slug}'? Ela ficará INACESSÍVEL (Acesso Negado) até ter um novo PIN.`)) {
-            localStorage.removeItem(`proposta_pin_${slug}`);
-            loadPins();
+            const success = await deletePinAction(slug);
+            if (success) {
+                await loadPins();
+            } else {
+                alert('Erro ao deletar PIN no Supabase.');
+            }
         }
     };
 
@@ -90,6 +117,28 @@ export default function AdminPanel() {
     const openProposta = (slug: string) => {
         window.open(`/proposta/${slug}`, '_blank');
     };
+
+    if (isInitializing) {
+        return (
+            <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center relative overflow-hidden">
+                <div className="grid-lines" />
+                <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+                    className="w-12 h-12 border-4 border-slate-700 border-t-blue-500 rounded-full mb-6 relative z-10"
+                />
+                <motion.h2
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.5, delay: 0.2 }}
+                    className="text-white font-bold tracking-widest text-sm uppercase relative z-10 shadow-black drop-shadow-md"
+                    style={{ fontFamily: 'Syne' }}
+                >
+                    Autenticando Conexão Segura...
+                </motion.h2>
+            </div>
+        );
+    }
 
     if (!isLoggedIn) {
         return (
@@ -157,96 +206,146 @@ export default function AdminPanel() {
                 </div>
 
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-semibold" style={{ fontFamily: 'Syne' }}>
-                                <th className="p-4 pl-6">Proposta</th>
-                                <th className="p-4">Status / PIN</th>
-                                <th className="p-4 text-right pr-6">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {propostas.map((prop: Proposta) => {
-                                const hasPin = Boolean(pins[prop.slug]);
-                                const pin = pins[prop.slug];
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse min-w-[600px]">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wider text-slate-500 font-semibold" style={{ fontFamily: 'Syne' }}>
+                                    <th className="p-4 pl-6 whitespace-nowrap">Proposta</th>
+                                    <th className="p-4 whitespace-nowrap">Status / PIN</th>
+                                    <th className="p-4 text-right pr-6 whitespace-nowrap">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {propostas.map((prop: Proposta) => {
+                                    const hasPin = Boolean(pins[prop.slug]);
+                                    const pin = pins[prop.slug];
 
-                                return (
-                                    <tr key={prop.slug} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                                        <td className="p-4 pl-6 py-5">
-                                            <div className="font-bold text-slate-900 mb-1">{prop.cliente}</div>
-                                            <div className="text-sm text-slate-500 font-mono bg-slate-100 inline-block px-2 py-0.5 rounded">/{prop.slug}</div>
-                                        </td>
-                                        <td className="p-4">
-                                            {hasPin ? (
-                                                <div className="flex items-center gap-2">
-                                                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 flex items-center gap-1.5">
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-green-500" /> Ativo
+                                    return (
+                                        <tr key={prop.slug} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
+                                            <td className="p-4 pl-6 py-5">
+                                                <div className="font-bold text-slate-900 mb-1 whitespace-nowrap">{prop.cliente}</div>
+                                                <div className="text-sm text-slate-500 font-mono bg-slate-100 inline-block px-2 py-0.5 rounded">/{prop.slug}</div>
+                                            </td>
+                                            <td className="p-4">
+                                                {hasPin ? (
+                                                    <div className="flex items-center gap-2 whitespace-nowrap">
+                                                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 flex items-center gap-1.5">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-green-500" /> Ativo
+                                                        </span>
+                                                        <code className="text-sm font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{pin}</code>
+                                                    </div>
+                                                ) : (
+                                                    <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 flex items-center gap-1.5 whitespace-nowrap">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Sem PIN (Bloqueada)
                                                     </span>
-                                                    <code className="text-sm font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{pin}</code>
-                                                </div>
-                                            ) : (
-                                                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 flex items-center gap-1.5">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500" /> Sem PIN (Bloqueada)
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="p-4 pr-6 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={() => openProposta(prop.slug)}
-                                                    className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition-colors"
-                                                    title="Acessar Proposta"
-                                                >
-                                                    <ExternalLink size={18} />
-                                                </button>
-                                                <button
-                                                    onClick={() => copyLink(prop.slug)}
-                                                    className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition-colors"
-                                                    title="Copiar Link"
-                                                >
-                                                    {copiedSlug === prop.slug ? <CheckCircle2 size={18} className="text-green-600" /> : <Copy size={18} />}
-                                                </button>
-                                                {hasPin && (
+                                                )}
+                                            </td>
+                                            <td className="p-4 pr-6 text-right">
+                                                <div className="flex items-center justify-end gap-2">
                                                     <button
-                                                        onClick={() => copyPin(prop.slug)}
+                                                        onClick={() => openProposta(prop.slug)}
                                                         className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition-colors"
-                                                        title="Copiar PIN"
+                                                        title="Acessar Proposta"
                                                     >
-                                                        {copiedPinSlug === prop.slug ? <ClipboardCheck size={18} className="text-green-600" /> : <ClipboardList size={18} />}
+                                                        <ExternalLink size={18} />
                                                     </button>
-                                                )}
-                                                <button
-                                                    onClick={() => setPin(prop.slug)}
-                                                    className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition-colors"
-                                                    title={hasPin ? 'Alterar PIN' : 'Criar PIN'}
-                                                >
-                                                    <Key size={18} />
-                                                </button>
-                                                {hasPin && (
                                                     <button
-                                                        onClick={() => deletePin(prop.slug)}
-                                                        className="p-2 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
-                                                        title="Remover PIN (Bloquear Acesso)"
+                                                        onClick={() => copyLink(prop.slug)}
+                                                        className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition-colors"
+                                                        title="Copiar Link"
                                                     >
-                                                        <Trash2 size={18} />
+                                                        {copiedSlug === prop.slug ? <CheckCircle2 size={18} className="text-green-600" /> : <Copy size={18} />}
                                                     </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                                                    {hasPin && (
+                                                        <button
+                                                            onClick={() => copyPin(prop.slug)}
+                                                            className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition-colors"
+                                                            title="Copiar PIN"
+                                                        >
+                                                            {copiedPinSlug === prop.slug ? <ClipboardCheck size={18} className="text-green-600" /> : <ClipboardList size={18} />}
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => openSetPinModal(prop.slug)}
+                                                        className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-blue-600 transition-colors"
+                                                        title={hasPin ? 'Alterar PIN' : 'Criar PIN'}
+                                                    >
+                                                        <Key size={18} />
+                                                    </button>
+                                                    {hasPin && (
+                                                        <button
+                                                            onClick={() => deletePin(prop.slug)}
+                                                            className="p-2 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+                                                            title="Remover PIN (Bloquear Acesso)"
+                                                        >
+                                                            <Trash2 size={18} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
                     {propostas.length === 0 && (
                         <div className="p-8 text-center text-slate-500">Nenhuma proposta encontrada no arquivo propostas.ts</div>
                     )}
                 </div>
 
                 <div className="mt-8 p-4 rounded-xl bg-blue-50 border border-blue-100 text-sm text-blue-800 leading-relaxed">
-                    <strong>ℹ️ Como funciona:</strong> Os PINs são salvos localmente neste navegador (via localStorage). Se você acessar de outro computador ou limpar os dados de navegação, precisará recriar os PINs para as propostas que deseja liberar acesso.
+                    <strong>ℹ️ Segurança Avançada:</strong> Os PINs agora são criptografados, processados por backend (Server Actions) e guardados no Banco de Dados Supabase. O acesso público é bloqueado.
                 </div>
             </main>
+
+            {/* Modal para Definir PIN */}
+            {settingPinFor && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={cancelSetPin}>
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-white border border-slate-200 p-6 rounded-2xl w-full max-w-sm shadow-2xl"
+                    >
+                        <h3 className="text-xl font-bold text-slate-900 mb-2" style={{ fontFamily: 'Syne' }}>
+                            Configurar PIN
+                        </h3>
+                        <p className="text-sm text-slate-500 mb-4">
+                            Digite o novo PIN de acesso para a proposta <strong>{settingPinFor}</strong>.
+                        </p>
+
+                        <input
+                            type="text"
+                            value={newPinValue}
+                            onChange={(e) => setNewPinValue(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all mb-6"
+                            placeholder="Ex: 2026"
+                            autoFocus
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') confirmSetPin();
+                                if (e.key === 'Escape') cancelSetPin();
+                            }}
+                        />
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={cancelSetPin}
+                                className="flex-1 py-2.5 rounded-xl font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={confirmSetPin}
+                                className="flex-1 py-2.5 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-500/20"
+                            >
+                                Salvar PIN
+                            </button>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
         </div>
     );
 }

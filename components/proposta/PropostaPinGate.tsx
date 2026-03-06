@@ -4,23 +4,13 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Lock, Eye, EyeOff } from 'lucide-react';
 
+import { checkHasPinAction, validatePinAction } from '@/lib/actions';
+
 interface Props {
     slug: string;
     cliente: string;
     cores?: { primaria: string; secundaria: string };
     children: React.ReactNode;
-}
-
-function checkPin(slug: string, input: string): boolean {
-    if (typeof window === 'undefined') return false;
-    const pin = localStorage.getItem(`proposta_pin_${slug}`);
-    return pin === input;
-}
-
-function hasPin(slug: string): boolean {
-    if (typeof window === 'undefined') return false;
-    const pin = localStorage.getItem(`proposta_pin_${slug}`);
-    return Boolean(pin);
 }
 
 export default function PropostaPinGate({ slug, cliente, cores, children }: Props) {
@@ -30,6 +20,7 @@ export default function PropostaPinGate({ slug, cliente, cores, children }: Prop
     const [error, setError] = useState('');
     const [show, setShow] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [validating, setValidating] = useState(false);
 
     const primaria = cores?.primaria ?? 'var(--navy)';
     const secundaria = cores?.secundaria ?? 'var(--sky)';
@@ -42,22 +33,35 @@ export default function PropostaPinGate({ slug, cliente, cores, children }: Prop
             setLoading(false);
             return;
         }
-        // Check if PIN exists
-        if (!hasPin(slug)) {
-            setNoPin(true);
-        }
-        setLoading(false);
+
+        // Verifica remotamente pelo servidor de forma segura se a proposta ALGUÉM cadastrou um PIN
+        checkHasPinAction(slug).then(has => {
+            if (!has) {
+                setNoPin(true);
+            }
+            setLoading(false);
+        }).catch(() => {
+            setError('Erro ao contactar servidor.');
+            setLoading(false);
+        });
+
     }, [slug]);
 
-    function handleSubmit(e: React.FormEvent) {
+    async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
-        if (checkPin(slug, input)) {
+        setValidating(true);
+        setError('');
+
+        const isValid = await validatePinAction(slug, input);
+
+        if (isValid) {
             sessionStorage.setItem(`tkode_access_${slug}`, 'granted');
             setGranted(true);
         } else {
             setError('PIN incorreto. Tente novamente.');
             setInput('');
         }
+        setValidating(false);
     }
 
     if (loading) return null;
@@ -172,10 +176,11 @@ export default function PropostaPinGate({ slug, cliente, cores, children }: Prop
 
                         <button
                             type="submit"
-                            className="w-full py-3 rounded-xl font-bold text-sm text-white transition-opacity hover:opacity-85"
+                            disabled={validating}
+                            className={`w-full py-3 rounded-xl font-bold text-sm text-white transition-all ${validating ? 'opacity-70 cursor-wait' : 'hover:opacity-85'}`}
                             style={{ background: primaria, fontFamily: 'Syne' }}
                         >
-                            Acessar Proposta →
+                            {validating ? 'Validando...' : 'Acessar Proposta →'}
                         </button>
                     </form>
 
