@@ -11,25 +11,16 @@ interface Props {
     children: React.ReactNode;
 }
 
-const STORAGE_KEY = 'tkode_pins';
-
-function getPins(): Record<string, string> {
-    if (typeof window === 'undefined') return {};
-    try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    } catch {
-        return {};
-    }
-}
-
 function checkPin(slug: string, input: string): boolean {
-    const pins = getPins();
-    return pins[slug] === input;
+    if (typeof window === 'undefined') return false;
+    const pin = localStorage.getItem(`proposta_pin_${slug}`);
+    return pin === input;
 }
 
 function hasPin(slug: string): boolean {
-    const pins = getPins();
-    return Boolean(pins[slug]);
+    if (typeof window === 'undefined') return false;
+    const pin = localStorage.getItem(`proposta_pin_${slug}`);
+    return Boolean(pin);
 }
 
 export default function PropostaPinGate({ slug, cliente, cores, children }: Props) {
