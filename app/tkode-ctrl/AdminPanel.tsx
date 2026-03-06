@@ -25,20 +25,32 @@ export default function AdminPanel() {
 
     useEffect(() => {
         const init = async () => {
-            if (sessionStorage.getItem('tkode_admin_auth') === 'true') {
-                setIsLoggedIn(true);
-                await loadPins();
+            try {
+                if (sessionStorage.getItem('tkode_admin_auth') === 'true') {
+                    setIsLoggedIn(true);
+                    await loadPins();
+                }
+            } catch (err) {
+                console.error('Erro de inicialização:', err);
+            } finally {
+                setIsInitializing(false);
             }
-            setIsInitializing(false);
         };
         init();
     }, []);
 
     const loadPins = async () => {
-        setLoadingTokens(true);
-        const serverPins = await getAllPinsAction();
-        setPins(serverPins);
-        setLoadingTokens(false);
+        try {
+            setLoadingTokens(true);
+            const serverPins = await getAllPinsAction();
+            setPins(serverPins);
+        } catch (err) {
+            console.error('Erro ao buscar PINs:', err);
+            // Evitar que quebre mantendo state vazio
+            setPins({});
+        } finally {
+            setLoadingTokens(false);
+        }
     };
 
     const handleLogin = (e: React.FormEvent) => {
