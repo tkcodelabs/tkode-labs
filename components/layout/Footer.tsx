@@ -124,7 +124,7 @@ export default function Footer() {
                     style={{ borderTop: '1px solid rgba(200,222,255,.1)', color: 'rgba(200,222,255,.3)' }}
                 >
                     <span>© 2026 TKode Labs — Todos os direitos reservados</span>
-                    <span>Desenvolvido com ❤️ usando Next.js + Vercel</span>
+                    <span>Desenvolvido por Bruno Maykon</span>
                 </div>
             </div>
         </footer>

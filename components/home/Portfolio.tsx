@@ -4,10 +4,10 @@ import { motion } from 'framer-motion';
 
 const PROJECTS = [
     {
-        emoji: '📊',
-        title: 'Portal de Contabilidade',
-        desc: 'Sistema web completo para escritórios de contabilidade com gestão de clientes, documentos e dashboard analítico.',
-        tags: ['Next.js', 'Supabase', 'PostgreSQL'],
+        emoji: '📸',
+        title: 'Portfólio de Fotógrafo',
+        desc: 'Site visualmente impactante para exibição de galerias em alta resolução, orçamentos rápidos e conexão com Instagram.',
+        tags: ['Next.js', 'Framer Motion', 'Tailwind'],
         color: 'var(--blue)',
         bg: 'rgba(36,98,200,.06)',
         status: 'Entregue',
@@ -15,10 +15,10 @@ const PROJECTS = [
         statusBg: 'rgba(13,110,63,.1)',
     },
     {
-        emoji: '🛍️',
-        title: 'Plataforma de E-commerce',
-        desc: 'Loja virtual com painel administrativo, gestão de estoque, pedidos e integração com gateways de pagamento.',
-        tags: ['React', 'Node.js', 'Stripe'],
+        emoji: '🏫',
+        title: 'Site Institucional Escolar',
+        desc: 'Portal moderno para instituições de ensino com notícias, galeria de fotos, grade curricular e integração com redes sociais.',
+        tags: ['Next.js', 'Sanity CMS', 'SEO'],
         color: 'var(--purple)',
         bg: 'rgba(76,29,149,.06)',
         status: 'Entregue',
@@ -65,9 +65,9 @@ const PROJECTS = [
         tags: ['Next.js', 'Supabase', 'Stripe'],
         color: '#7c3aed',
         bg: 'rgba(124,58,237,.06)',
-        status: 'Em andamento',
-        statusColor: '#b45309',
-        statusBg: 'rgba(180,83,9,.1)',
+        status: 'Entregue',
+        statusColor: '#0D6E3F',
+        statusBg: 'rgba(13,110,63,.1)',
     },
 ];
 
